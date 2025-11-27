@@ -14,13 +14,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class TaxonomyDiscounts {
 
-	public $product_taxonomy = 'product_brand';
+	public $product_brand = 'product_brand';
+	public $product_taxonomy = 'product_cat';
 
 	public function __construct() {
 		add_action( 'init', array( $this, 'register_discounts_post_type' ) );
 		add_action( 'acf/init', array( $this, 'register_acf_fields' ) );
 		add_filter( 'woocommerce_product_get_price', array( $this, 'apply_taxonomy_discounts' ), 10, 2 );
 		add_filter( 'woocommerce_product_get_sale_price', array( $this, 'apply_taxonomy_discounts' ), 10, 2 );
+
+		// Cache management hooks
+		add_action( 'save_post', array( $this, 'clear_discount_cache' ) );
+		add_action( 'delete_post', array( $this, 'clear_discount_cache_on_delete' ) );
 	}
 
 	// Register Custom Post Type
@@ -43,11 +48,23 @@ class TaxonomyDiscounts {
 				'title' => 'Discount Fields',
 				'fields' => array(
 					array(
-						'key' => 'field_taxonomies',
-						'label' => 'Taxonomies',
-						'name' => 'taxonomies',
+						'key' => 'field_brands',
+						'label' => 'Brands',
+						'name' => 'brands',
 						'type' => 'taxonomy',
-						'instructions' => 'Select the taxonomies to apply this discount to.',
+						'instructions' => 'Select the brands to apply this discount to.',
+						'taxonomy' => $this->product_brand,
+						'field_type' => 'multi_select',
+						'required' => 1,
+						'allow_null' => 0,
+						'return_format' => 'id',
+					),
+					array(
+						'key' => 'field_categories',
+						'label' => 'Categories',
+						'name' => 'categories',
+						'type' => 'taxonomy',
+						'instructions' => 'Select the categories to apply this discount to.',
 						'taxonomy' => $this->product_taxonomy,
 						'field_type' => 'multi_select',
 						'required' => 1,
@@ -127,6 +144,14 @@ class TaxonomyDiscounts {
 			return array();
 		}
 
+		$product_id = $product->get_id();
+		$cache_key = 'taxonomy_discounts_' . $product_id . '_' . $this->get_discounts_version();
+		$cached_discounts = get_transient( $cache_key );
+
+		if ( false !== $cached_discounts ) {
+			return $cached_discounts;
+		}
+
 		$today = date( 'Y-m-d' );
 
 		$discounts = get_posts( array(
@@ -197,19 +222,29 @@ class TaxonomyDiscounts {
 		$applicable_discounts = array();
 
 		foreach ( $discounts as $discount ) {
-			$taxonomies = get_field( 'taxonomies', $discount->ID );
+			$brands = get_field( 'brands', $discount->ID ); // brands
+			$categories = get_field( 'categories', $discount->ID ); // categories
 
-			if ( $taxonomies ) {
-				// Check if product has any of the selected taxonomies
-				$product_terms = wp_get_post_terms( $product->get_id(), $this->product_taxonomy, array( 'fields' => 'ids' ) );
-				$has_taxonomy = array_intersect( $taxonomies, $product_terms );
+			if ( $brands && $categories ) {
+				// Check categories first (optimization: cheaper to check first)
+				$product_categories = wp_get_post_terms( $product->get_id(), $this->product_taxonomy, array( 'fields' => 'ids' ) );
+				$has_category = array_intersect( $categories, $product_categories );
 
-				if ( $has_taxonomy ) {
-					$percent = get_field( 'percent', $discount->ID );
-					$applicable_discounts[] = $percent;
+				if ( $has_category ) {
+					// Only check brands if categories match
+					$product_brands = wp_get_post_terms( $product->get_id(), $this->product_brand, array( 'fields' => 'ids' ) );
+					$has_brand = array_intersect( $brands, $product_brands );
+
+					if ( $has_brand ) {
+						$percent = get_field( 'percent', $discount->ID );
+						$applicable_discounts[] = $percent;
+					}
 				}
 			}
 		}
+
+		// Cache for 1 hour
+		set_transient( $cache_key, $applicable_discounts, HOUR_IN_SECONDS );
 
 		return $applicable_discounts;
 	}
@@ -230,6 +265,43 @@ class TaxonomyDiscounts {
 		}
 
 		return $price;
+	}
+
+	// Get cache version for invalidation
+	public function get_discounts_version() {
+		$version = get_transient( 'taxonomy_discounts_version' );
+		if ( false === $version ) {
+			$version = time();
+			set_transient( 'taxonomy_discounts_version', $version, 0 ); // Never expires
+		}
+		return $version;
+	}
+
+	// Clear discount cache when discount is saved
+	public function clear_discount_cache( $post_id ) {
+		// Handle both regular save_post and ACF save_post
+		if ( get_post_type( $post_id ) === 'discount' ) {
+			$this->clear_all_discount_cache();
+		}
+	}
+
+	// Clear discount cache when discount is deleted
+	public function clear_discount_cache_on_delete( $post_id ) {
+		if ( get_post_type( $post_id ) === 'discount' ) {
+			$this->clear_all_discount_cache();
+		}
+	}
+
+	// Clear all discount caches
+	public function clear_all_discount_cache() {
+		// Update version to invalidate all existing caches
+		$version = time();
+		set_transient( 'taxonomy_discounts_version', $version, 0 );
+
+		// Optional: Clear any existing transients with old pattern
+		global $wpdb;
+		$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_taxonomy_discounts_%'" );
+		$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_taxonomy_discounts_%'" );
 	}
 
 }

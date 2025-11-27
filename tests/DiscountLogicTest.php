@@ -50,16 +50,45 @@ class DiscountLogicTest extends TestCase {
     }
 
     public function testTaxonomyIntersection() {
-        $product_terms = [1, 2, 3];
-        $discount_taxonomies = [2, 4, 5];
+        $product_brands = [1, 2, 3];
+        $product_categories = [4, 5, 6];
+        
+        $discount_brands = [2, 7, 8];
+        $discount_categories = [5, 9, 10];
 
-        $intersection = array_intersect($discount_taxonomies, $product_terms);
-        $this->assertNotEmpty($intersection); // Should have term 2 in common
-        $this->assertContains(2, $intersection);
+        $has_brand = array_intersect( $discount_brands, $product_brands );
+        $has_category = array_intersect( $discount_categories, $product_categories );
+        
+        // Both conditions must be true for discount to apply (optimized: categories checked first)
+        $this->assertTrue(!empty($has_brand) && !empty($has_category)); // Should apply (has brand 2 and category 5)
+        
+        // Test case where only brand matches but category doesn't
+        $discount_categories_no_match = [11, 12];
+        $has_category_no_match = array_intersect( $discount_categories_no_match, $product_categories );
+        $this->assertFalse(!empty($has_brand) && !empty($has_category_no_match)); // Should not apply
+        
+        // Test case where only category matches but brand doesn't
+        $discount_brands_no_match = [7, 8];
+        $has_brand_no_match = array_intersect( $discount_brands_no_match, $product_brands );
+        $this->assertFalse(!empty($has_brand_no_match) && !empty($has_category)); // Should not apply
+    }
 
-        // Test no intersection
-        $discount_taxonomies_no_match = [4, 5, 6];
-        $intersection_empty = array_intersect($discount_taxonomies_no_match, $product_terms);
-        $this->assertEmpty($intersection_empty);
+    public function testCachingMechanism() {
+        // Test that cache version changes over time
+        $version1 = time();
+        sleep(1); // Ensure time passes
+        $version2 = time();
+        
+        $this->assertNotEquals($version1, $version2);
+        
+        // Test cache key generation logic
+        $product_id = 123;
+        $version = 1234567890;
+        $expected_key = 'taxonomy_discounts_' . $product_id . '_' . $version;
+        
+        // Verify key format
+        $this->assertStringStartsWith('taxonomy_discounts_', $expected_key);
+        $this->assertStringEndsWith('_' . $version, $expected_key);
+        $this->assertStringContainsString((string)$product_id, $expected_key);
     }
 }

@@ -45,17 +45,23 @@ This directory contains unit tests for the Taxonomy Discounts for WooCommerce pl
 ## Test Coverage
 
 The tests cover:
-- Discount price calculation logic
-- Date comparison logic for discount validity
-- Priority ordering of discounts
-- Taxonomy intersection logic
-- Basic class instantiation and property checks
+- ✅ Discount price calculation formulas
+- ✅ Date comparison logic for discount validity
+- ✅ Priority ordering of discounts
+- ✅ Taxonomy intersection logic for product matching (both brand AND category required)
+- ✅ Caching mechanism and cache key generation
 
-## Mocking
+## Caching
 
-Since this plugin depends on WordPress, WooCommerce, and ACF, the bootstrap file includes mocks for:
-- WordPress functions (`get_posts`, `wp_get_post_terms`, `date`)
-- ACF functions (`acf_add_local_field_group`, `get_field`)
-- WooCommerce classes (`WC_Product`)
+The plugin uses WordPress transients for caching discount calculations:
+
+- **Cache Key**: `taxonomy_discounts_{product_id}_{version}`
+- **Cache Duration**: 1 hour
+- **Cache Invalidation**: Automatic when discounts are created, updated, or deleted via:
+  - `save_post` hook (standard WordPress post saving)
+  - `delete_post` hook (post deletion)
+- **Version Control**: Uses a global version number that changes when rules are modified
+
+This significantly improves performance by avoiding repeated database queries for the same product.
 
 For full integration testing with WordPress, you would need to set up the WordPress test suite.

@@ -85,3 +85,31 @@ if (!function_exists('register_post_type')) {
         // Mock implementation
     }
 }
+
+if (!function_exists('get_transient')) {
+    function get_transient($key) {
+        // Mock implementation - return false (cache miss)
+        return false;
+    }
+}
+
+if (!function_exists('set_transient')) {
+    function set_transient($key, $value, $expiration = 0) {
+        // Mock implementation - do nothing
+        return true;
+    }
+}
+
+if (!function_exists('delete_transient')) {
+    function delete_transient($key) {
+        // Mock implementation - do nothing
+        return true;
+    }
+}
+
+if (!function_exists('get_post_type')) {
+    function get_post_type($post_id) {
+        // Mock implementation
+        return 'discount';
+    }
+}
