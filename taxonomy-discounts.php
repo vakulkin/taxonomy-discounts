@@ -238,6 +238,7 @@ class TaxonomyDiscounts {
 					if ( $has_brand ) {
 						$percent = get_field( 'percent', $discount->ID );
 						$applicable_discounts[] = $percent;
+						break; // Apply only the highest priority discount
 					}
 				}
 			}
