@@ -225,7 +225,7 @@ class TaxonomyDiscounts
                     'percent' => $fields['percent'] ?? 0,
                 );
             }
-            set_transient($cache_key, $discounts, MINUTE_IN_SECONDS * 5); // cache for 5 minutes
+            set_transient($cache_key, $discounts, HOUR_IN_SECONDS * 3); // cache for 3 hours
         }
         return $discounts;
     }
@@ -285,11 +285,11 @@ class TaxonomyDiscounts
             return $price;
         }
 
-        // $cache_key = 'taxonomy_discounts_discounted_price_' . $product->get_id();
-        // $cached_price = get_transient($cache_key);
-        // if (false !== $cached_price) {
-        //     return $cached_price;
-        // }
+        $cache_key = 'taxonomy_discounts_discounted_price_' . $product->get_id();
+        $cached_price = get_transient($cache_key);
+        if (false !== $cached_price) {
+            return $cached_price;
+        }
 
         $applicable_discounts = $this->get_applicable_discounts($product);
 
@@ -297,7 +297,7 @@ class TaxonomyDiscounts
             // Apply the highest priority discount
             $discount_percent = $applicable_discounts[0];
             $discounted_price = $product->get_regular_price() * (1 - $discount_percent * 0.01);
-            // set_transient($cache_key, $discounted_price, MINUTE_IN_SECONDS * 1);
+            set_transient($cache_key, $discounted_price, rand(60, 300));
             return $discounted_price;
         }
 
