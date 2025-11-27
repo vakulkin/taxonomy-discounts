@@ -146,7 +146,7 @@ class TaxonomyDiscounts {
 		$cache_key = 'taxonomy_discounts_active_discounts';
 		$discounts = get_transient( $cache_key );
 		if ( false === $discounts ) {
-			$today = current_time( 'Y-m-d' );
+			$today = wp_date( 'Y-m-d' );
 			$posts = get_posts( array(
 				'post_type' => 'discount',
 				'posts_per_page' => -1,
